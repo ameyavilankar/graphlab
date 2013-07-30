@@ -113,7 +113,7 @@ inline rated_items_type& operator+=(rated_items_type& left, const rated_items_ty
 		else
 		{
 			for(rated_items_type::const_iterator it = right.begin(); it != right.end(); it++)
-				left[it->first]++;
+				left[it->first] += it->second; // left[it->first]++;
 		}
 	}
 
@@ -448,7 +448,7 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 	ASSERT_GT(num_rated, 0);
 
 	// Gather on all the edges to get the average rating and the sparse vector containing the items/users and their ratings
-	gather_type gather_result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::ALL_EDGES, map_get_sparse_vectors, operator+=);
+	gather_type gather_result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::ALL_EDGES, map_get_sparse_vectors);
 
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
@@ -479,12 +479,34 @@ rated_items_type map_get_topk(graph_type::edge_type& edge, const graph_type::ver
 /*
 rated_items_type combine(rated_items_type& one, rated_items_type& two)
 {
-		
+	// No need the operator+= define above should work
 }
 */
 
+void get_topk((engine_type::context& context, graph_type::vertex_type vertex)
+{
+	// Gather the list of items rated by each user.
+	rated_items_type gather_result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::IN_EDGES, map_get_topk);
 
+	// Remove the list of users that have less than min allowed intersection users common with the current user.
+	rated_items_type::iterator it = gather_result.begin();
+	while (it != gather_result.end())
+	{
+		if (it->second < MIN_ALLOWED_INTERSECTION)
+			mymap.erase(it++);
+		else
+			it++;
+	}
 
+	// Get a reference to the vertex data
+	vertex_data& vdata = vertex.data();
+
+	// Store the list of similar items into the recommended items
+	vdata.recommended_items = gather_result;
+
+	// Increment the num_updates to the vertex by 1
+	vdata.num_updates++;
+}
 
 // Used to compute the average of each user
 struct user_average_reducer
@@ -555,6 +577,13 @@ struct item_vector_reducer
 	}
 
 };
+
+// TODO
+struct recommended_items
+{
+	/* data */
+};
+
 
 // Used to save the results to file
 class graph_writer
@@ -683,15 +712,20 @@ int main(int argc, char** argv)
     std::map<id_type, rating_type> user_average = graph.map_reduce_vertices<user_average_reducer>(user_average_reducer::get_user_average, user_set).user_average;
 
 	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
-    dc.cout() << "Getting the vector for each item using map reduce on vertices...\n";
+    dc.cout() << "Getting the vector for each item using map reduce on item vertices...\n";
     std::map<id_type, rated_items_type> item_vector = graph.map_reduce_vertices<item_vector_reducer>(item_vector_reducer::get_item_vector, item_set).item_vector;
 	
 	/*
 	// Get the list of similar items and the
 	dc.cout() << "Calcute the Top - k similar items for each item...\n";
-	engine.set_update_function();
-	engine.signal();
+	engine.set_update_function(get_topk);
+	engine.signal_vset(item_set);
+	engine.start();
 	*/
+
+
+	// Calculate the Recommendations for each of the users
+	dc.cout() << "Calculating the Recommendations for each of the User: \n";
 
 
     // Save the predictions if indicated by the user
