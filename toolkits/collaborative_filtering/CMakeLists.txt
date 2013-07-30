@@ -33,8 +33,7 @@ add_graphlab_executable(make_synthetic_als_data
   make_synthetic_als_data.cpp)
 requires_eigen(make_synthetic_als_data) # build and attach eigen
 
-add_graphlab_executable(itembasedcf itembasedcf.cpp)
-
+add_graphlab_executable(warpitemcf warpitemcf.cpp)
 
 # add_graphlab_executable(warp_nmf warp_nmf.cpp)
 # requires_eigen(warp_sgd) # build and attach eigen
