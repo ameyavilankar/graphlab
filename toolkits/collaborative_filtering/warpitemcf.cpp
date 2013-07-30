@@ -469,6 +469,52 @@ rated_items_type combine(rated_items_type& one, rated_items_type& two)
 		
 }
 
+// Used to compute the average of each user
+struct user_average_reducer
+{
+	map<id_type, rating_type> user_average;
+
+	static user_average_reducer get_user_average(const graph_type::vertex_type& v)
+	{
+		// Just create a map that maps from the user_id to its average rating for the current vertex
+	    user_average_reducer result;
+	    result.user_average[v.data().data_id] = v.data().average_rating;
+	    return result;
+  	}
+
+  	user_average_reducer& operator+=(const user_average_reducer& other)
+  	{
+  		// add all the entries from other to the current one
+  		for(map<id_type, rating_type>::const_iterator cit = other.user_average.begin(); cit != other.user_average.end(); cit++)
+  			user_average[cit->first] = cit->second;
+
+	    return *this;
+  	}
+};
+
+// Used to compute the vector for each item
+struct item_vector_reducer
+{
+	map<id_type, rated_items_type> item_vector;
+
+	static item_vector_reducer get_item_vector(const graph_type::vertex_type& v)
+	{
+		// Just create a map that maps from the item_id to its vector
+	    item_vector_reducer result;
+	    result.item_vector[v.data().data_id] = v.data().rated_items;
+	    return result;
+  	}
+
+  	item_vector_reducer& operator+=(const item_vector_reducer& other)
+  	{
+  		// add all the entries from other to the current one
+  		for(map<id_type, rated_items_type>::const_iterator cit = other.user_average.begin(); cit != other.user_average.end(); cit++)
+  			user_average[cit->first] = cit->second;
+
+	    return *this;
+  	}
+};
+
 // Used to save the results to file
 class graph_writer
 {
@@ -593,9 +639,13 @@ int main(int argc, char** argv)
 	dc.cout() << "Finished in " << timer.current_time() << "\n";
 
 	// Run map_reduce on all the user vertices to get the global average user vectors
+	dc.cout() << "Calculating the average rating for each user...\n";
+    map<id_type, rating_type> user_average = graph.map_reduce_vertices<user_average_reducer>(user_average_reducer::get_user_average, user_set).user_average;
 
 	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
-
+    dc.cout() << "Getting the vector for each item using map reduce on vertices...\n";
+    map<id_type, rated_items_type> item_vector = graph.map_reduce_vertices<item_vector_reducer>(item_vector_reducer::get_item_vector, item_set).item_vector;
+	
 	// Get the list of similar items and the
 	dc.cout() << "Calcute the Top - k similar items for each item...\n";
 	engine.set_update_function();
