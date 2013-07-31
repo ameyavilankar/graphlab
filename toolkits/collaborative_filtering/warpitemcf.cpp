@@ -421,7 +421,6 @@ struct gather_type
 	}
 };
 
-
 /*
 * \brief 
 * For User Vertices:
@@ -432,7 +431,7 @@ struct gather_type
 * The gather_type structure that is made up of the rating on the edge and 
 * the rated_items map that contains the user connected to the item (other vertex) and its rating.
 */
-gather_type map_get_sparse_vectors(graph_type::edge_type& edge, const graph_type::vertex_type& other)
+gather_type map_get_sparse_vectors(graph_type::edge_type edge, graph_type::vertex_type other)
 {
 	return gather_type(edge.data().rating, other.data().data_id);
 }
@@ -456,7 +455,7 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 	ASSERT_GT(num_rated, 0);
 
 	// Gather on all the edges to get the average rating and the sparse vector containing the items/users and their ratings
-	gather_type gather_result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::ALL_EDGES, map_get_sparse_vectors);
+	gather_type gather_result = graphlab::warp::map_reduce_neighborhood<gather_type, graph_type::vertex_type>(vertex, graphlab::ALL_EDGES, map_get_sparse_vectors);
 
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
@@ -468,9 +467,9 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 	vdata.rated_items = gather_result.items;
 
 	// Set the rating as 1 if a user for counting
-	if(is_user(vdata))
+	if(is_user(vertex))
 	{
-		for(rated_type::iterator it = vdata.rated_items.begin(); i
+		for(rated_type::iterator it = vdata.rated_items.begin(); it != vdata.rated_items.end(); it++)
 			it->second = 1.0;
 	}
 
@@ -482,7 +481,7 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 /*
 * \brief Returns the sparse vector containing all the items rated by the user vertex.
 */
-rated_type map_get_topk(graph_type::edge_type& edge, const graph_type::vertex_type& other)
+rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type other)
 {
 	// return the list of items rated by the user
 	return other.data().rated_items;
@@ -498,14 +497,14 @@ rated_type map_get_topk(graph_type::edge_type& edge, const graph_type::vertex_ty
 void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Gather the list of items rated by each user.
-	rated_type gather_result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::IN_EDGES, map_get_topk);
+	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_topk);
 
 	// Remove the list of users that have less than min allowed intersection users common with the current user.
 	rated_type::iterator it = gather_result.begin();
 	while (it != gather_result.end())
 	{
 		if (it->second < MIN_ALLOWED_INTERSECTION)
-			mymap.erase(it++);
+			gather_result.erase(it++);
 		else
 			it++;
 	}
@@ -617,7 +616,7 @@ struct recommended_items
 
 	void load(graphlab::iarchive& arc)
 	{
-		arc >> weighted_sum << similarity_sum;
+		arc >> weighted_sum >> similarity_sum;
 	}
 
 	// Implement the operator+= for aggregating together
@@ -635,7 +634,7 @@ struct recommended_items
 * \brief 
 */
 // TODO: Make it more efficient..see if map can be copied(copy constructor)
-recommended_items map_get_recommended_items(graph_type::edge_type& edge, const graph_type::vertex_type& other)
+recommended_items map_get_recommended_items(graph_type::edge_type edge, graph_type::vertex_type other)
 {
 	// Get the rating for the edge which is used to caclulate the weighted sum
 	rating_type rating = edge.data().rating;
@@ -650,7 +649,7 @@ recommended_items map_get_recommended_items(graph_type::edge_type& edge, const g
 	for(rated_type::const_iterator cit = similar_items.begin(); cit != similar_items.end(); ++cit)
 	{
 		result.weighted_sum[cit->first] = cit->second * rating;
-		result.similarity_sum[cit->first] = cit->second
+		result.similarity_sum[cit->first] = cit->second;
 	}
 	
 	return result; 
@@ -662,7 +661,7 @@ recommended_items map_get_recommended_items(graph_type::edge_type& edge, const g
 void get_recommended_items(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Gather on all the edges to get the average rating and the sparse vector containing the items/users and their ratings
-	recommended_items result = graphlab::warp::map_reduce_neighborhood(vertex, graphlab::ALL_EDGES, map_get_recommended_items);
+	recommended_items result = graphlab::warp::map_reduce_neighborhood<recommended_items, graph_type::vertex_type>(vertex, graphlab::ALL_EDGES, map_get_recommended_items);
 
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
