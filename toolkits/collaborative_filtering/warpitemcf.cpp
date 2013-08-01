@@ -74,7 +74,7 @@ const int SAFE_NEG_OFFSET = 2;
 typedef int id_type;
 
 /*
-* \brief Type to store the rating on the edge of the graph(can be changed to int for 0-5 range)
+* \brief Type to store the rating on the edge of the graph and in other sparse vectors
 */
 typedef double rating_type;
 
@@ -82,6 +82,11 @@ typedef double rating_type;
 * \brief Type for the list of items/user to be saved on an vertex.
 */
 typedef std::map<id_type, rating_type> rated_type;
+
+/*
+* \brief Type for a sparse Matrix
+*/
+typedef std::map<id_type, rated_type> sparse_matrix;
 
 /**
 * \brief We use the rated_items type in accumulators and so we define an
@@ -112,13 +117,35 @@ inline rated_type& operator+=(rated_type& left, const rated_type& right)
 			left = right;
 		else
 		{
-			for(rated_type::const_iterator it = right.begin(); it != right.end(); it++)
+			// TODO: Check the += operator
+			// Add to left it exits else += will add to 0 which is same =
+			for(rated_type::const_iterator cit = right.begin(); cit != right.end(); cit++)
 				left[it->first] += it->second; // left[it->first]++;
 		}
 	}
 
 	return left;
 }
+
+
+inline sparse_matrix& operator+=(sparse_matrix* left, const sparse_matrix& right)
+{
+	if(!right.empty())
+	{
+		if(left.empty())
+			left = right;
+		else
+		{
+			// TODO: Check the += operator
+			// Add to left it exits else += will add to 0 which is same =
+			for(sparse_matrix::const_iterator cit = right.begin(); cit != right.end(); cit++)
+				left[it->first] = it->second; // left[it->first]++;
+		}
+	}
+
+	return left;
+}
+
 
 /**
 * \brief This is used to find the intersection (common items/users) from two lists of users/items
@@ -139,12 +166,12 @@ inline rated_type intersect(const rated_type& left, const rated_type& right)
 /**
  * \brief The number of users in the graph.
  */
-size_t NUM_USERS = 1;
+//size_t NUM_USERS = 1;
 
 /**
  * \brief The number of items/movies in the graph.
  */
-size_t NUM_ITEMS = 1;
+//size_t NUM_ITEMS = 1;
 
 
 /**
@@ -342,7 +369,7 @@ bool graph_loader(graph_type& graph, const std::string& fname, const std::string
 
 	// successful load
 	return true;
-} // end of graph 
+} // end of graph_loader 
 
 
 /**
@@ -451,6 +478,7 @@ gather_type map_get_sparse_vectors(graph_type::edge_type edge, graph_type::verte
 void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Get the number of rated items/users by the users/items
+	// Users: in_edges will be zero and Items: out_edges will be zero
 	const size_t num_rated = vertex.num_in_edges() + vertex.num_in_edges();
 	ASSERT_GT(num_rated, 0);
 
@@ -466,17 +494,28 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 	// Save the sparse of the rated items/users on the current vertex
 	vdata.rated_items = gather_result.items;
 
+	/*
 	// Set the rating as 1 if a user for counting
 	if(is_user(vertex))
 	{
 		for(rated_type::iterator it = vdata.rated_items.begin(); it != vdata.rated_items.end(); it++)
 			it->second = 1.0;
 	}
+	*/
 
 	// Increment the num_updates to the vertex by 1
 	vdata.num_updates++;
 }
 
+/*
+sparse_matrix map_get_sparse_matrix(graph_type::edge_type edge, graph_type::vertex_type other)
+{
+	sparse_matrix ret_mat;
+	ret_mat[other.data().data_id] = other.data().rated_items;
+	return ret_mat;
+}
+*/
+	
 
 /*
 * \brief Returns the sparse vector containing all the items rated by the user vertex.
