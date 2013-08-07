@@ -47,21 +47,19 @@
 #include <graphlab/util/stl_util.hpp>
 #include "stats.hpp"
 
-/*
-enum DISTANCE_METRICS{
-  JACKARD = 0,
-  AA = 1,
-  RA = 2,
-  PEARSON = 3,
-  COSINE = 4,
-  CHEBYCHEV = 5,
-  MANHATTEN = 6,
-  TANIMOTO = 7,
-  LOG_LIKELIHOOD = 8,
-  JACCARD_WEIGHT = 9
-};
-*/
 
+enum DISTANCE_METRICS {
+	JACKARD = 0,
+	AA = 1,
+	RA = 2,
+	PEARSON = 3,
+	COSINE = 4,
+	CHEBYCHEV = 5,
+	MANHATTEN = 6,
+	TANIMOTO = 7,
+	LOG_LIKELIHOOD = 8,
+	JACCARD_WEIGHT = 9
+};
 
 /*
 * \brief Add 2 to negative node id to prevent -0 and -1 which are not allowed as vertex ids.
@@ -120,15 +118,47 @@ inline rated_type& operator+=(rated_type& left, const rated_type& right)
 			// TODO: Check the += operator
 			// Add to left it exits else += will add to 0 which is same =
 			for(rated_type::const_iterator cit = right.begin(); cit != right.end(); cit++)
-				left[it->first] += it->second; // left[it->first]++;
+				left[cit->first] += cit->second; // left[it->first]++;
 		}
 	}
 
 	return left;
 }
 
+inline void combine(rated_type& left, const rated_type& right)
+{
+	// Do we need to handle Addition to self??
+	/*
+	if(left == right)
+	{
+		rated_type newRight;
 
-inline sparse_matrix& operator+=(sparse_matrix* left, const sparse_matrix& right)
+		for(rated_type::const_iterator it = right.begin(); it != right.end(); it++)
+				newRight[it->first] = it->second;
+
+		// call += again, but will not go into this block of code
+		left += newRight;
+
+		return left;
+	}
+	*/
+
+	// Add entries from right if right is not empty
+	if(!right.empty())
+	{
+		if(left.empty())
+			left = right;
+		else
+		{
+			// TODO: Check the += operator
+			// Add to left it exits else += will add to 0 which is same =
+			for(rated_type::const_iterator cit = right.begin(); cit != right.end(); cit++)
+				left[cit->first] += cit->second; // left[it->first]++;
+		}
+	}
+}
+
+inline sparse_matrix& operator+=(sparse_matrix& left, const sparse_matrix& right)
 {
 	if(!right.empty())
 	{
@@ -139,7 +169,7 @@ inline sparse_matrix& operator+=(sparse_matrix* left, const sparse_matrix& right
 			// TODO: Check the += operator
 			// Add to left it exits else += will add to 0 which is same =
 			for(sparse_matrix::const_iterator cit = right.begin(); cit != right.end(); cit++)
-				left[it->first] = it->second; // left[it->first]++;
+				left[cit->first] = cit->second; // left[it->first]++;
 		}
 	}
 
@@ -170,12 +200,12 @@ inline rated_type intersect(const rated_type& left, const rated_type& right)
 
 /**
  * \brief The number of items/movies in the graph.
- */
-//size_t NUM_ITEMS = 1;
-
+ *
+///size_t NUM_ITEMS = 1;
+brief
 
 /**
- * \brief The number of top similar items to be used in the calculation
+ * \ The number of top similar items to be used in the calculation
  */
 size_t TOPK = 10;
 
@@ -192,7 +222,14 @@ rated_type user_average;
 /**
  * \brief Global sparse matrix to hold the ratings for each item.
  */
-std::map<id_type, rated_type> item_vector;
+sparse_matrix item_vector;
+
+
+/**
+ * \brief The similarity value to be returned when there are less than MIN_ALLOWED_INTERSECTION
+ * common elements between two sparse vectors.
+ */
+const int INVALID_SIMILARITY = -2;
 
 /**
 * \brief Used to calculate the adjusted cosine similarity between two sparse vectors
@@ -212,7 +249,7 @@ double adj_cosine_similarity(rated_type& one, rated_type& two)
 	}
 
 	if(oneCommon.size() < MIN_ALLOWED_INTERSECTION)
-		return -1.0;
+		return INVALID_SIMILARITY;
 	
 	double oneSqrSum = 0.0;
 	double twoSqrSum = 0.0;
@@ -239,9 +276,6 @@ double adj_cosine_similarity(rated_type& one, rated_type& two)
  */
 struct vertex_data
 {
-	// Stores the id on the movie/item  		// TODO: do we need this
-	id_type data_id;
-
 	// Total number of times the vertex has been updated...incremented everytime apply is run
 	uint32_t num_updates;
 
@@ -249,24 +283,24 @@ struct vertex_data
 	rating_type average_rating;
 
 	// The list of rated items for a user vertex or
-	// The list of users who have given a rating for an item vertex
+	// The list of users who have given a rating, for an item vertex
 	rated_type rated_items;
 
 	// Used to store the recommended items: Filled ony for user vertices
 	rated_type recommended_items;
 
 	// Constructor
-	vertex_data(int id = 0, rating_type avg = 0.0): data_id(id), num_updates(0.0), average_rating(avg), rated_items() {}
+	vertex_data(rating_type avg = 0.0): data_id(id), num_updates(0.0), average_rating(avg), rated_items() {}
 
 	// Functions to make vertex serializable
 	void save(graphlab::oarchive& arc) const
 	{
-		arc << data_id << num_updates << average_rating << rated_items << recommended_items;
+		arc << num_updates << average_rating << rated_items << recommended_items;
 	}
 
 	void load(graphlab::iarchive& arc)
 	{
-		arc >> data_id >> num_updates >> average_rating >> rated_items >> recommended_items;
+		arc >> num_updates >> average_rating >> rated_items >> recommended_items;
 	}
 
 }; // End of the vertex class
@@ -373,7 +407,7 @@ bool graph_loader(graph_type& graph, const std::string& fname, const std::string
 
 
 /**
- * \brief Determine if the given vertex is a item/movie vertex or a   
+ * \brief Determine if the given vertex is a item vertex or a   
  * vertex.
  *
  * For simplicity we connect users --> items and therefore if a vertex
@@ -460,7 +494,8 @@ struct gather_type
 */
 gather_type map_get_sparse_vectors(graph_type::edge_type edge, graph_type::vertex_type other)
 {
-	return gather_type(edge.data().rating, other.data().data_id);
+	//graphlab::vertex_id_type other_id = (other.id() > 0)? other.id(): -(other.id() + SAFE_NEG_OFFSET);
+	return gather_type(edge.data().rating, other.id());
 }
 
 /*
@@ -474,12 +509,11 @@ gather_type map_get_sparse_vectors(graph_type::edge_type edge, graph_type::verte
 * containing the user_ids and their rating.
 *
 */
-// TODO : confirm whether there should be & for vertex?
 void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Get the number of rated items/users by the users/items
 	// Users: in_edges will be zero and Items: out_edges will be zero
-	const size_t num_rated = vertex.num_in_edges() + vertex.num_in_edges();
+	const size_t num_rated = vertex.num_in_edges() + vertex.num_out_edges();
 	ASSERT_GT(num_rated, 0);
 
 	// Gather on all the edges to get the average rating and the sparse vector containing the items/users and their ratings
@@ -511,7 +545,7 @@ void get_sparse_vectors(engine_type::context& context, graph_type::vertex_type v
 sparse_matrix map_get_sparse_matrix(graph_type::edge_type edge, graph_type::vertex_type other)
 {
 	sparse_matrix ret_mat;
-	ret_mat[other.data().data_id] = other.data().rated_items;
+	ret_mat[other.id()] = other.data().rated_items;
 	return ret_mat;
 }
 */
@@ -523,7 +557,13 @@ sparse_matrix map_get_sparse_matrix(graph_type::edge_type edge, graph_type::vert
 rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type other)
 {
 	// return the list of items rated by the user
-	return other.data().rated_items;
+	const rated_type& similar_items = other.data().rated_items;
+	rated_type similarity_score;
+
+	for(rated_type::const_iterator cit = similar_items.begin(); cit != similar_items.end(); cit++)
+		similarity_score[cit->first] = adj_cosine_similarity();
+
+	return similarity_score;
 }
 
 /*
@@ -536,7 +576,7 @@ rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type othe
 void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Gather the list of items rated by each user.
-	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_topk);
+	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_topk, combine);
 
 	// Remove the list of users that have less than min allowed intersection users common with the current user.
 	rated_type::iterator it = gather_result.begin();
@@ -569,7 +609,7 @@ struct user_average_reducer
 	{
 		// Just create a map that maps from the user_id to its average rating for the current vertex
 	    user_average_reducer result;
-	    result.user_average[v.data().data_id] = v.data().average_rating;
+	    result.user_average[v.id()] = v.data().average_rating;
 	    return result;
   	}
 
@@ -601,20 +641,20 @@ struct user_average_reducer
 */
 struct item_vector_reducer
 {
-	std::map<id_type, rated_type> item_vector;
+	sparse_matrix item_vector;
 
 	static item_vector_reducer get_item_vector(const graph_type::vertex_type& v)
 	{
 		// Just create a map that maps from the item_id to its vector
 	    item_vector_reducer result;
-	    result.item_vector[v.data().data_id] = v.data().rated_items;
+	    result.item_vector[v.id()] = v.data().rated_items;
 	    return result;
   	}
 
   	item_vector_reducer& operator+=(const item_vector_reducer& other)
   	{
   		// add all the entries from other to the current one
-  		for(std::map<id_type, rated_type>::const_iterator cit = other.item_vector.begin(); cit != other.item_vector.end(); cit++)
+  		for(sparse_matrix::const_iterator cit = other.item_vector.begin(); cit != other.item_vector.end(); cit++)
   			item_vector[cit->first] = cit->second;
 
 	    return *this;
@@ -726,7 +766,7 @@ public:
 		{
 			// Stringstream is slower...replace with boost spirit
 			std::stringstream strm;
-			strm << v.data().data_id << "\t";
+			strm << -(v.id() + SAFE_NEG_OFFSET) << "\t";
 			
 			for(rated_type::const_iterator cit = v.data().recommended_items.begin(); cit != v.data().recommended_items.end(); ++cit)
 				strm << "(" << cit->first << ", " << cit->second << ")"; 
@@ -750,20 +790,46 @@ int main(int argc, char** argv)
 	// Parse command line options -----------------------------------------------
 	const std::string description = "Carry out Item Based Collaborative Filtering.";
 	graphlab::command_line_options clopts(description);
-	std::string input_dir;
+	std::string input_file = "inputfile.txt";
 	std::string predictions;
 	std::string exec_type = "synchronous";
 	int min_allowed_intersection = 1;
-	
+	int distance_metric = COSINE;
+
 	// TODO: Add more commandlines
+	clopts.attach_option("input_file", input_file,
+						"Input file name in sparse matrix market format");
 	clopts.attach_option("predictions", predictions,
 	                   "The prefix (folder and filename) to save predictions.");
 	clopts.attach_option("engine", exec_type, 
 	                   "The engine type synchronous or asynchronous");
 	clopts.attach_option("min_allowed_intersection", min_allowed_intersection,
 						"The minimum number of common users that have rated two items for considering for similarity computation.");
+	clopts.attach_option("distance", distance_metric, 
+						"The type of distance to be used in the item-item similarity computation.");
+	clopts.attach_option("topk", TOPK,
+						"The number of similar items that should be used in prediction step.")
 
-	if(!clopts.parse(argc, argv) /*|| input_dir == ""*/)
+	// Check if input file was specified
+	if(input_file.empty())
+	{
+		std::cout << "Input file is: " << input_file << "\n";
+		std::cout << "No Input File specified. Please Specify a file in the sparse matrix format." << std::endl;
+		clopts.print_description();
+		return EXIT_FAILURE;
+	}
+
+	// Check if a valid distance metric was specified
+	if (distance_metric != PEARSON && distance_metric != MANHATTEN && distance_metric != COSINE &&
+		distance_metric != CHEBYCHEV && distance_metric != LOG_LIKELIHOOD && distance_metric != TANIMOTO && distance_metric != JACKARD)
+	{
+		std::cout << "Error in parsing distance distance metric." << std::endl;
+		clopts.print_description();
+		return EXIT_FAILURE;	
+	}
+
+
+	if(!clopts.parse(argc, argv) || input_file == "")
 	{
 		std::cout << "Error in parsing command line arguments." << std::endl;
 		clopts.print_description();
@@ -782,7 +848,7 @@ int main(int argc, char** argv)
     timer.start();
     graph_type graph(dc, clopts);
     // Load the graph in parallel on multiple machines using the parser function
-    graph.load("graph.txt", graph_loader);
+    graph.load(input_file, graph_loader);
     dc.cout() << "Loading Graph Finished in " << timer.current_time() << "\n";
 
 
@@ -844,19 +910,33 @@ int main(int argc, char** argv)
     dc.cout() << "Getting the vector for each item using map reduce on item vertices...\n";
     item_vector = graph.map_reduce_vertices<item_vector_reducer>(item_vector_reducer::get_item_vector, item_set).item_vector;
 	
+    dc.cout() << "Displaying the average rating for each user.\n";
+    for(rated_type::const_iterator cit = user_average.begin(); cit != user_average.end(); cit++)
+    	dc.cout() << "User: " << cit->first << ", Average Rating: " << cit->second << "\n";
+
+
+    dc.cout() << "Displaying the Global Item Matrix.\n";
+    for(sparse_matrix::const_iterator cit = item_vector.begin(); cit != item_vector.end(); cit++)
+    {
+    	dc.cout() << "Item: " << cit->first << "\n" << "Item vectors:\n";
+		for(rated_type::const_iterator uit = cit->second.begin(); uit != cit->second.end(); uit++)
+    		dc.cout() << "User: " << uit->first << ", Rating: " << uit->second << "\n";    	
+    }
+    	
 	/*
 	// Get the list of similar items and the
 	dc.cout() << "Calcute the Top - k similar items for each item...\n";
 	engine.set_update_function(get_topk);
 	engine.signal_vset(item_set);
 	engine.start();
-	*/
+	
 
 	// Calculate the Recommendations for each of the users
 	dc.cout() << "Calculating the Recommendations for each of the User: \n";
 	engine.set_update_function(get_recommended_items);
 	engine.signal_vset(user_set);
 	engine.start();
+	*/
 
     // Save the predictions if indicated by the user
     if(!predictions.empty())
