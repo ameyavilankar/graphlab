@@ -151,9 +151,10 @@ inline void combine(rated_type& left, const rated_type& right)
 		else
 		{
 			// TODO: Check the += operator
-			// Add to left it exits else += will add to 0 which is same =
+			// Will only add new entry if not present
 			for(rated_type::const_iterator cit = right.begin(); cit != right.end(); cit++)
-				left[cit->first] += cit->second; // left[it->first]++;
+				if(left.find(cit->first) == left.end())
+					left[cit->first] = cit->second;
 		}
 	}
 }
@@ -290,7 +291,7 @@ struct vertex_data
 	rated_type recommended_items;
 
 	// Constructor
-	vertex_data(rating_type avg = 0.0): data_id(id), num_updates(0.0), average_rating(avg), rated_items() {}
+	vertex_data(rating_type avg = 0.0): num_updates(0.0), average_rating(avg), rated_items() {}
 
 	// Functions to make vertex serializable
 	void save(graphlab::oarchive& arc) const
@@ -368,7 +369,7 @@ bool graph_loader(graph_type& graph, const std::string& fname, const std::string
 	graphlab::vertex_id_type user_id(-1), item_id(-1);
 
 	// Used to store the rating on the edge
-	double rating = 0;
+	rating_type rating = 0;
 
 	// Read using the boost libraries
 	const bool success = qi::phrase_parse
@@ -558,10 +559,23 @@ rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type othe
 {
 	// return the list of items rated by the user
 	const rated_type& similar_items = other.data().rated_items;
+
+	// To hold the similarity score
 	rated_type similarity_score;
 
+	// Get the id of the current item
+	id_type current_id = get_other_vertex(edge, other).id();
+
+	// Go through all the items rated by the other user, except for current item
 	for(rated_type::const_iterator cit = similar_items.begin(); cit != similar_items.end(); cit++)
-		similarity_score[cit->first] = adj_cosine_similarity();
+		if(cit->first != current_id)
+		{
+			// Get the score and add only if score is valid
+			// Score is invalid if common users are less than MIN_ALLOWED_INTERSECTION			
+			double score = adj_cosine_similarity(item_vector[cit->first], item_vector[current_id]);
+			if(score != INVALID_SIMILARITY)
+				similarity_score[cit->first] = score; 
+		}
 
 	return similarity_score;
 }
@@ -578,21 +592,13 @@ void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
 	// Gather the list of items rated by each user.
 	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_topk, combine);
 
-	// Remove the list of users that have less than min allowed intersection users common with the current user.
-	rated_type::iterator it = gather_result.begin();
-	while (it != gather_result.end())
-	{
-		if (it->second < MIN_ALLOWED_INTERSECTION)
-			gather_result.erase(it++);
-		else
-			it++;
-	}
-
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
 
 	// Store the list of similar items into the recommended items
 	vdata.recommended_items = gather_result;
+
+	// TODO: Trim the result to have only topk entries using a heap
 
 	// Increment the num_updates to the vertex by 1
 	vdata.num_updates++;
@@ -603,7 +609,7 @@ void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
 */
 struct user_average_reducer
 {
-	std::map<id_type, rating_type> user_average;
+	rated_type user_average;
 
 	static user_average_reducer get_user_average(const graph_type::vertex_type& v)
 	{
@@ -616,7 +622,7 @@ struct user_average_reducer
   	user_average_reducer& operator+=(const user_average_reducer& other)
   	{
   		// add all the entries from other to the current one
-  		for(std::map<id_type, rating_type>::const_iterator cit = other.user_average.begin(); cit != other.user_average.end(); cit++)
+  		for(rated_type::const_iterator cit = other.user_average.begin(); cit != other.user_average.end(); cit++)
   			user_average[cit->first] = cit->second;
 
 	    return *this;
@@ -673,6 +679,40 @@ struct item_vector_reducer
 
 };
 
+struct topk_reducer
+{
+	sparse_matrix topk;
+
+	static topk_reducer get_topk(const graph_type::vertex_type& v)
+	{
+		// Just create a map that maps from the item_id to its vector
+	    topk_reducer result;
+	    result.topk[v.id()] = v.data().recommended_items;
+	    return result;
+  	}
+
+  	topk_reducer& operator+=(const topk_reducer& other)
+  	{
+  		// add all the entries from other to the current one
+  		for(sparse_matrix::const_iterator cit = other.topk.begin(); cit != other.topk.end(); cit++)
+  			topk[cit->first] = cit->second;
+
+	    return *this;
+  	}
+
+  	// Functions to make gather_type serialisable
+	void save(graphlab::oarchive& arc) const
+	{
+		arc << topk;
+	}
+
+	void load(graphlab::iarchive& arc)
+	{
+		arc >> topk;
+	}
+
+};
+
 /*
 * \brief Used to Hold the following:
 * 1. Weighted Sum: This holds the summation of the rating for an item 
@@ -719,13 +759,13 @@ recommended_items map_get_recommended_items(graph_type::edge_type edge, graph_ty
 	rating_type rating = edge.data().rating;
 
 	// Get a reference to the similar items on the connected item vertex
-	const rated_type& similar_items = other.data().rated_items;
+	const rated_type& items = other.data().recommended_items;
 	
 	// The result to returned 
 	recommended_items result;
 
 	// Get the weighted sum and the similarity scores
-	for(rated_type::const_iterator cit = similar_items.begin(); cit != similar_items.end(); ++cit)
+	for(rated_type::const_iterator cit = items.begin(); cit != items.end(); ++cit)
 	{
 		result.weighted_sum[cit->first] = cit->second * rating;
 		result.similarity_sum[cit->first] = cit->second;
@@ -766,16 +806,39 @@ public:
 		{
 			// Stringstream is slower...replace with boost spirit
 			std::stringstream strm;
-			strm << -(v.id() + SAFE_NEG_OFFSET) << "\t";
+			strm << "User id: " << -(v.id() + SAFE_NEG_OFFSET) << "\n";
+
+			strm << "Rated items: ";
+			for(rated_type::const_iterator cit = v.data().rated_items.begin(); cit != v.data().rated_items.end(); cit++)
+				strm << "(" << cit->first << ", " << cit->second << ")";
+			strm << "\n";
 			
+			strm << "Recommended Items: ";
 			for(rated_type::const_iterator cit = v.data().recommended_items.begin(); cit != v.data().recommended_items.end(); ++cit)
 				strm << "(" << cit->first << ", " << cit->second << ")"; 
+			strm << "\n\n\n";
 
 			return strm.str();
 		}
 
-		// TODO Check
-		return "\n";
+		if(is_item(v))
+		{
+			// Stringstream is slower...replace with boost spirit
+			std::stringstream strm;
+			strm << "Item id: " << v.id() << "\n";
+
+			strm << "Users who rated item: ";
+			for(rated_type::const_iterator cit = v.data().rated_items.begin(); cit != v.data().rated_items.end(); cit++)
+				strm << "(" << cit->first << ", " << cit->second << ")";
+			strm << "\n";
+			
+			strm << "Top K Similar Items: ";
+			for(rated_type::const_iterator cit = v.data().recommended_items.begin(); cit != v.data().recommended_items.end(); ++cit)
+				strm << "(" << cit->first << ", " << cit->second << ")"; 
+			strm << "\n\n\n";
+
+			return strm.str();	
+		}
 	}
 
 	// No need to save edge data since it only contatins rating
@@ -783,7 +846,7 @@ public:
 	{ 
 		return ""; 
 	}
- };
+};
 
 int main(int argc, char** argv)
 {
@@ -808,7 +871,7 @@ int main(int argc, char** argv)
 	clopts.attach_option("distance", distance_metric, 
 						"The type of distance to be used in the item-item similarity computation.");
 	clopts.attach_option("topk", TOPK,
-						"The number of similar items that should be used in prediction step.")
+						"The number of similar items that should be used in prediction step.");
 
 	// Check if input file was specified
 	if(input_file.empty())
@@ -904,16 +967,18 @@ int main(int argc, char** argv)
 
 	// Run map_reduce on all the user vertices to get the global average user vectors
 	dc.cout() << "Calculating the average rating for each user...\n";
+	timer.start();
     user_average = graph.map_reduce_vertices<user_average_reducer>(user_average_reducer::get_user_average, user_set).user_average;
 
 	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
     dc.cout() << "Getting the vector for each item using map reduce on item vertices...\n";
     item_vector = graph.map_reduce_vertices<item_vector_reducer>(item_vector_reducer::get_item_vector, item_set).item_vector;
-	
+	dc.cout() << "Finished in " << timer.current_time() << "\n";
+
+
     dc.cout() << "Displaying the average rating for each user.\n";
     for(rated_type::const_iterator cit = user_average.begin(); cit != user_average.end(); cit++)
     	dc.cout() << "User: " << cit->first << ", Average Rating: " << cit->second << "\n";
-
 
     dc.cout() << "Displaying the Global Item Matrix.\n";
     for(sparse_matrix::const_iterator cit = item_vector.begin(); cit != item_vector.end(); cit++)
@@ -922,21 +987,36 @@ int main(int argc, char** argv)
 		for(rated_type::const_iterator uit = cit->second.begin(); uit != cit->second.end(); uit++)
     		dc.cout() << "User: " << uit->first << ", Rating: " << uit->second << "\n";    	
     }
-    	
-	/*
+    		
 	// Get the list of similar items and the
-	dc.cout() << "Calcute the Top - k similar items for each item...\n";
+	dc.cout() << "Calculate the Top - k similar items for each item...\n";
+	timer.start();
 	engine.set_update_function(get_topk);
 	engine.signal_vset(item_set);
 	engine.start();
-	
+	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
+
+
+	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
+    dc.cout() << "Getting the TOP SIMILAR ITEMS for each item using map reduce on item vertices...\n";
+    sparse_matrix topk = graph.map_reduce_vertices<topk_reducer>(topk_reducer::get_topk, item_set).topk;
+	dc.cout() << "Finished in " << timer.current_time() << "\n";
+
+	dc.cout() << "Displaying the Top k itmes.\n";
+    for(sparse_matrix::const_iterator cit = topk.begin(); cit != topk.end(); cit++)
+    {
+    	dc.cout() << "Item: " << cit->first << "\n" << "Similar Items:\n";
+		for(rated_type::const_iterator uit = cit->second.begin(); uit != cit->second.end(); uit++)
+    		dc.cout() << "Item: " << uit->first << ", Score: " << uit->second << "\n";    	
+    }
 
 	// Calculate the Recommendations for each of the users
 	dc.cout() << "Calculating the Recommendations for each of the User: \n";
+	timer.start();
 	engine.set_update_function(get_recommended_items);
 	engine.signal_vset(user_set);
 	engine.start();
-	*/
+	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
 
     // Save the predictions if indicated by the user
     if(!predictions.empty())
@@ -951,14 +1031,7 @@ int main(int argc, char** argv)
 	    graph.save(predictions, graph_writer(),
 	               gzip_output, save_vertices, 
 	               save_edges, threads_per_machine);
-
-	    /*
-	    //save the linear model
-	    graph.save(predictions + ".U", linear_model_saver_U(),
-			gzip_output, save_edges, save_vertices, threads_per_machine);
-	    graph.save(predictions + ".V", linear_model_saver_V(),
-			gzip_output, save_edges, save_vertices, threads_per_machine);
-		*/
+	    
 	}
 
 	// Close MPI and return success
