@@ -1019,8 +1019,10 @@ int main(int argc, char** argv)
 	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
 
     // Save the predictions if indicated by the user
+    /*
     if(!predictions.empty())
     {
+    	*/
 	    std::cout << "Saving the Recommended Items for each User...\n";
 	    const bool gzip_output = false;
 	    const bool save_vertices = true;
@@ -1031,8 +1033,8 @@ int main(int argc, char** argv)
 	    graph.save(predictions, graph_writer(),
 	               gzip_output, save_vertices, 
 	               save_edges, threads_per_machine);
-	    
-	}
+
+	//}
 
 	// Close MPI and return success
 	graphlab::mpi_tools::finalize();
