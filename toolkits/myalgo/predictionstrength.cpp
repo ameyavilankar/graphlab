@@ -16,7 +16,7 @@ bool call_kmeans(const std::string& mpi_args, const std::string& filename,
     strm << " --data=" << filename /*<< ".compressed"*/;
     strm << " --clusters=" << num_clusters;
     strm << " --output-data=" << filename << ".result";
-    strm << "--output-clusters=cluster" << filename;
+    strm << " --output-clusters=cluster" << filename;
     strm << " --id=1";
     strm << " " << args;
 
@@ -81,43 +81,68 @@ int splitDatasets(std::map<long, std::vector<double> >& ratingMatrix)
     return 0;
 }
 
-// Used to read the cluster centers and store them in clusterCenters
-int getClusterCenters(const char* filename, std::map<int, std::vector<double> >& clusterCenters)
-{
-    // TODO
-    std::ifstream myfile(filename);                       // Open the file for getting the input
-    std::string currentLine;                         // To hold the entire currentline
-    std::vector<double> splitDouble;                 // To hold the double values from the currentline
+// // Used to read the cluster centers and store them in clusterCenters
+// int getClusterCenters(const char* filename, std::map<int, std::vector<double> >& clusterCenters)
+// {
+//     // TODO
+//     std::ifstream myfile(filename);                       // Open the file for getting the input
+//     std::string currentLine;                         // To hold the entire currentline
+//     std::vector<double> splitDouble;                 // To hold the double values from the currentline
     
-    //Always test the file open.
-    if(!myfile) 
-    {
-      std::cout<<"Error opening output file"<<endl;
-      return -1;
-    }
+//     //Always test the file open.
+//     if(!myfile) 
+//     {
+//       std::cout<<"Error opening output file"<<endl;
+//       return -1;
+//     }
     
-    // Read till the end of the file
-    while (std::getline (myfile, currentLine)) 
-    {
-        // Split the currentLine and only return the double parts
-        splitDouble = split(currentLine);
+//     // Read till the end of the file
+//     while (std::getline (myfile, currentLine)) 
+//     {
+//         // Split the currentLine and only return the double parts
+//         splitDouble = split(currentLine);
 
-        // TODO CHECKS for first element of the splitDouble
-        clusterCenters[splitDouble[0]] = std::vector<double>(splitDouble.begin() + 1, splitDouble.end());
-    }
+//         // TODO CHECKS for first element of the splitDouble
+//         clusterCenters[splitDouble[0]] = std::vector<double>(splitDouble.begin() + 1, splitDouble.end());
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 
-int findK(const std::string& mpi_args, const std::string& kmeans_dir, const std::string& other_args, int& bestK)
+//int findK(const std::string& mpi_args, const std::string& kmeans_dir, const std::string& other_args, int& bestK)
+
+int main(int argc, char **argv)
 {
-     // Create a std::map from the user id to the ratingMatrix
+    std::cout << "Running Prediction Strength to find the Best K...\n\n";
+
+    std::string graph_dir = "";
+    std::string svd_dir = "../collaborative_filtering/";
+    std::string kmeans_dir = "../clustering/";
+    std::string mpi_args;
+    std::string kmeansinput = "synthetic.txt";
+
+    //parse command line
+    graphlab::command_line_options clopts("Gap Statistic to find the Best K");
+    clopts.attach_option("graph", graph_dir, "The graph file. This is not optional. Vertex ids must start from 1 "
+    "and must not skip any numbers.");
+    clopts.attach_option("svd-dir", svd_dir, "Path to the directory of Graphlab svd");
+    clopts.attach_option("kmeans-dir", kmeans_dir, "Path to the directory of Graphlab kmeans");
+    clopts.attach_option("mpi-args", mpi_args, "If set, will execute mipexec with the given arguments. "
+    "For example, --mpi-args=\"-n [N machines] --hostfile [host file]\"");
+    
+    if (!clopts.parse(argc, argv))
+        return EXIT_FAILURE;
+    
+    const std::string& other_args = "";
+    int bestK = -1;
+    
+    // Create a std::map from the user id to the ratingMatrix
     std::map<long, std::vector<double> > ratingMatrix;
 
     std::cout<<"Getting the RatingMatrix...\n";
     // Get the ratings into the std::map from the file
-    int errorVal =  getRatingMatrix("ratings_with_id.txt", ratingMatrix);
+    int errorVal =  getRatingMatrix(kmeansinput.c_str(), ratingMatrix);
     std::cout<<"RatingMatrix Dimensions: "<<ratingMatrix.size()<<", "<<ratingMatrix[ratingMatrix.begin()->first].size()<<endl;
     int numberOfUsers = ratingMatrix.size();
 
@@ -151,7 +176,7 @@ int findK(const std::string& mpi_args, const std::string& kmeans_dir, const std:
         if(errorVal != 0)
             return errorVal;
         
-        errorVal = getUserToClusterMap("train.txt.result_1_of_1", UTCTestMap, CTUTestMap);
+        errorVal = getUserToClusterMap("test.txt.result_1_of_1", UTCTestMap, CTUTestMap);
         if(errorVal != 0)
             return errorVal;
 

@@ -975,7 +975,7 @@ int main(int argc, char** argv)
     item_vector = graph.map_reduce_vertices<item_vector_reducer>(item_vector_reducer::get_item_vector, item_set).item_vector;
 	dc.cout() << "Finished in " << timer.current_time() << "\n";
 
-
+	/*
     dc.cout() << "Displaying the average rating for each user.\n";
     for(rated_type::const_iterator cit = user_average.begin(); cit != user_average.end(); cit++)
     	dc.cout() << "User: " << cit->first << ", Average Rating: " << cit->second << "\n";
@@ -987,7 +987,8 @@ int main(int argc, char** argv)
 		for(rated_type::const_iterator uit = cit->second.begin(); uit != cit->second.end(); uit++)
     		dc.cout() << "User: " << uit->first << ", Rating: " << uit->second << "\n";    	
     }
-    		
+    */
+
 	// Get the list of similar items and the
 	dc.cout() << "Calculate the Top - k similar items for each item...\n";
 	timer.start();
@@ -998,6 +999,8 @@ int main(int argc, char** argv)
 
 
 	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
+    /*
+	
     dc.cout() << "Getting the TOP SIMILAR ITEMS for each item using map reduce on item vertices...\n";
     sparse_matrix topk = graph.map_reduce_vertices<topk_reducer>(topk_reducer::get_topk, item_set).topk;
 	dc.cout() << "Finished in " << timer.current_time() << "\n";
@@ -1009,6 +1012,7 @@ int main(int argc, char** argv)
 		for(rated_type::const_iterator uit = cit->second.begin(); uit != cit->second.end(); uit++)
     		dc.cout() << "Item: " << uit->first << ", Score: " << uit->second << "\n";    	
     }
+	*/
 
 	// Calculate the Recommendations for each of the users
 	dc.cout() << "Calculating the Recommendations for each of the User: \n";

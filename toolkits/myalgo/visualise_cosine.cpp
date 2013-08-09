@@ -106,7 +106,7 @@ int getClusterCenters(const char* filename, vector<vector<double> >& clusterCent
 }
 
 // Used to read the cluster centers and store them in clusterCenters
-int getClusterCenters(const char* filename, map<long, vector<double> >& clusterCenters)
+int getClusterCenters(const char* filename, map<int, vector<double> >& clusterCenters)
 {
     // TODO
     ifstream myfile(filename);						 // Open the file for getting the input

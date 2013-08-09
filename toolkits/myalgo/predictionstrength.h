@@ -7,3 +7,5 @@
 #include <limits>
 #include "cosine_main.h"
 #include "visualise.h"
+#include "visualise_cosine.cpp"
+#include <graphlab.hpp>

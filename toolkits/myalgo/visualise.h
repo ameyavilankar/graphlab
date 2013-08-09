@@ -1,3 +1,6 @@
+#ifndef VISUALISE_COSINE_H
+#define VISUALISE_COSINE_H
+
 #include <map>
 #include <vector>
 #include <string>
@@ -47,3 +50,5 @@ int visualise_cosine();
 6. Save all the results in json and text files.
 7. Calculate the Clustering Quality
 */
+
+#endif

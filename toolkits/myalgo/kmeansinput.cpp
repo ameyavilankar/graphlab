@@ -79,7 +79,6 @@ int getNumberLines(const string& filename = "OutputU.0_1_of_1")
 // Read the uMatrix and the vMatrix from file
 int readMatrices(MatrixXd& uMatrix, MatrixXd& vMatrix, size_t rank)
 {
-    double temp = 0;
     int  ulineNumber = 0;
     int vlineNumber = 0;
     string splitLine;
