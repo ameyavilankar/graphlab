@@ -187,6 +187,25 @@ int calculate_dispersion(std::string filename, int k, double& dispersion, const 
     return 0;
 }
 
+
+int calc_ref_dispersion(int ref_num, int k, const std::string& kmeansinput, const std::string& mpi_args, const std::string& kmeans_dir, const std::string& other_args, std::map<int, double>& reference_dispersions)
+{   
+    std::cout << "Reference dataset No: " << ref_num << "\n";
+    double disp = 0.0;
+    std::string filename = kmeansinput + "_ref" + to_string(ref_num);
+
+    int errorVal = calculate_dispersion(filename, k, disp, mpi_args, kmeans_dir, other_args);
+    if(errorVal != 0)
+    {
+        std::cout << "After dispersion calculaton, ErrorVal : " << errorVal << "\n";
+        return EXIT_FAILURE;
+    }
+
+    reference_dispersions[ref_num] = disp;
+
+    return 0;
+}
+
 //int findK(const std::string& mpi_args,const std::string& kmeans_dir, std::string& kmeansinput, const std::string& other_args, int& bestK, int num_ref_datasets = 10)
 int main(int argc, char **argv)
 {
@@ -235,7 +254,7 @@ int main(int argc, char **argv)
     errorVal = generate_reference_datasets(ratingMatrix, kmeansinput, num_ref_datasets);
     if(errorVal != 0)
     {
-        cout << "errorVal = " << errorVal << "\n";
+        std::cout << "errorVal = " << errorVal << "\n";
         return EXIT_FAILURE;
     }
 
@@ -244,9 +263,9 @@ int main(int argc, char **argv)
 
     // For arange of K values
     std::map<int, double> gapStatistic;
-    for(int k = 5; k < upperLimit; k++)
+    for(int i = 1; i <= num_ref_datasets; i++)
     {
-
+        /*
         std::cout << "Calculate dispersion for the original dataset and the current value of k = " << k << "\n";
         double original_dispersion = 0.0;
 
@@ -257,10 +276,22 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
         std::cout << "Dispersion for the original dataset for k = " << k << " is: " << original_dispersion << "\n";
+        */
 
-        std::cout << "Calculate dispersions for the reference datasets and the current value of k = " << k << "\n";
+        
+        // std::cout << "Calculate dispersions for the reference datasets and the current value of k = " << k << "\n";
         std::map<int, double> reference_dispersions; 
-        for(int i = 1; i <= num_ref_datasets; i++)
+        for(int k = 5; k < upperLimit; k++)
+        {
+            errorVal = calc_ref_dispersion(i, k, kmeansinput, mpi_args, kmeans_dir, other_args, reference_dispersions);
+            if(errorVal != 0)
+            {
+                std::cout << "errorVal = " << errorVal << "\n";
+                return EXIT_FAILURE;
+            }
+        }
+
+        /*
         {
             std::cout << "Reference dataset No: " << i << "\n";
             double disp = 0.0;
@@ -275,7 +306,9 @@ int main(int argc, char **argv)
 
             reference_dispersions[i] = disp;
         }
+        */
 
+        /*
         std::cout << "\n";
         std::cout << "Calculate the avg_reference_dispersion for k = " << k << "\n";
         double avg_reference_dispersion = 0.0;
@@ -284,11 +317,13 @@ int main(int argc, char **argv)
 
         avg_reference_dispersion /= reference_dispersions.size();
         
-        // Define the kth gap by: log(mean dispersion of reference datasets) - log(dispersion of original dataset).
+        std::cout << "Average Reference Dispersion: " << avg_reference_dispersion << "\n"; 
+                // Define the kth gap by: log(mean dispersion of reference datasets) - log(dispersion of original dataset).
         gapStatistic[k] = (log(avg_reference_dispersion) - log(original_dispersion));
+        */
     }
 
-
+    /*
     // Find the maximum gap statistic
     double max = std::numeric_limits<double>::min();
     bestK = -1;
@@ -300,6 +335,7 @@ int main(int argc, char **argv)
         }
 
     std::cout << "Best Value of K is: " << bestK << "\n";
+    */
 
     return EXIT_SUCCESS;
 }
