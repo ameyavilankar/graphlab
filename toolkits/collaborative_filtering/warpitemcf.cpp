@@ -34,6 +34,8 @@
 
 #include <vector>
 #include <algorithm>
+#include <utility>
+#include <queue>
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
@@ -92,22 +94,6 @@ typedef std::map<id_type, rated_type> sparse_matrix;
 */
 inline rated_type& operator+=(rated_type& left, const rated_type& right)
 {
-	// Do we need to handle Addition to self??
-	/*
-	if(left == right)
-	{
-		rated_type newRight;
-
-		for(rated_type::const_iterator it = right.begin(); it != right.end(); it++)
-				newRight[it->first] = it->second;
-
-		// call += again, but will not go into this block of code
-		left += newRight;
-
-		return left;
-	}
-	*/
-
 	// Add entries from right if right is not empty
 	if(!right.empty())
 	{
@@ -127,22 +113,6 @@ inline rated_type& operator+=(rated_type& left, const rated_type& right)
 
 inline void combine(rated_type& left, const rated_type& right)
 {
-	// Do we need to handle Addition to self??
-	/*
-	if(left == right)
-	{
-		rated_type newRight;
-
-		for(rated_type::const_iterator it = right.begin(); it != right.end(); it++)
-				newRight[it->first] = it->second;
-
-		// call += again, but will not go into this block of code
-		left += newRight;
-
-		return left;
-	}
-	*/
-
 	// Add entries from right if right is not empty
 	if(!right.empty())
 	{
@@ -193,17 +163,6 @@ inline rated_type intersect(const rated_type& left, const rated_type& right)
 
 	return intersection;
 }
-
-/**
- * \brief The number of users in the graph.
- */
-//size_t NUM_USERS = 1;
-
-/**
- * \brief The number of items/movies in the graph.
- *
-///size_t NUM_ITEMS = 1;
-brief
 
 /**
  * \ The number of top similar items to be used in the calculation
@@ -555,29 +514,10 @@ sparse_matrix map_get_sparse_matrix(graph_type::edge_type edge, graph_type::vert
 /*
 * \brief Returns the sparse vector containing all the items rated by the user vertex.
 */
-rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type other)
+rated_type map_get_similar_items(graph_type::edge_type edge, graph_type::vertex_type other)
 {
-	// return the list of items rated by the user
-	const rated_type& similar_items = other.data().rated_items;
-
-	// To hold the similarity score
-	rated_type similarity_score;
-
-	// Get the id of the current item
-	id_type current_id = get_other_vertex(edge, other).id();
-
-	// Go through all the items rated by the other user, except for current item
-	for(rated_type::const_iterator cit = similar_items.begin(); cit != similar_items.end(); cit++)
-		if(cit->first != current_id)
-		{
-			// Get the score and add only if score is valid
-			// Score is invalid if common users are less than MIN_ALLOWED_INTERSECTION			
-			double score = adj_cosine_similarity(item_vector[cit->first], item_vector[current_id]);
-			if(score != INVALID_SIMILARITY)
-				similarity_score[cit->first] = score; 
-		}
-
-	return similarity_score;
+	// return the list of items rated by the user on the other side of the edge
+	return other.data().rated_items;
 }
 
 /*
@@ -587,10 +527,13 @@ rated_type map_get_topk(graph_type::edge_type edge, graph_type::vertex_type othe
 * and the items in the aggregated list. It then removes the item that have less than MIN_ALLOWED_INTERSECTION
 * common users. 
 */
-void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
+void get_similar_items(engine_type::context& context, graph_type::vertex_type vertex)
 {
 	// Gather the list of items rated by each user.
-	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_topk, combine);
+	rated_type gather_result = graphlab::warp::map_reduce_neighborhood<rated_type, graph_type::vertex_type>(vertex, graphlab::IN_EDGES, map_get_similar_items, combine);
+
+	// Remove the current item from the list
+	gather_result.erase(vertex.id());	
 
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
@@ -598,10 +541,88 @@ void get_topk(engine_type::context& context, graph_type::vertex_type vertex)
 	// Store the list of similar items into the recommended items
 	vdata.recommended_items = gather_result;
 
-	// TODO: Trim the result to have only topk entries using a heap
-
 	// Increment the num_updates to the vertex by 1
 	vdata.num_updates++;
+}
+
+struct item_similarity
+{
+	id_type id;
+	double similarity;
+
+	item_similarity(id_type i, double sim = 0.0):id(i), similarity(sim) {}
+};
+
+struct compare
+{
+	bool operator()(const item_similarity& one, const item_similarity& two)
+	{
+		return one.similarity > two.similarity;
+	}
+};
+
+
+void calculate_topk(engine_type::context& context, graph_type::vertex_type vertex)
+{
+	// Get a reference to the list of similar items to compare to
+	rated_type& items = vertex.data().recommended_items;
+
+	// Current id to be used in distance computation
+	id_type current_id = vertex.id();
+
+	// Calculate the similarity score of current user to all the other user
+	rated_type::iterator it = items.begin();
+	while(it != items.end())
+	{
+		// Get the score and check if it is valid
+		double score = adj_cosine_similarity(item_vector[it->first], item_vector[current_id]);
+		if(score == INVALID_SIMILARITY)
+		{
+			// Score is invalid if common users are less than MIN_ALLOWED_INTERSECTION
+			// If score is invalid remove it from the list
+			items.erase(it++);
+		}
+		else
+		{
+			// Score is valid, set the score
+			it->second = score; 
+			it++;
+		}	
+	}
+
+	// Trim the result to have only topk entries using a heap
+	std::priority_queue<item_similarity, std::vector<item_similarity>, compare> min_queue;
+	
+	for(rated_type::const_iterator cit = items.begin(); cit != items.end(); cit++)
+		if(min_queue.size() == TOPK)
+		{
+			if(cit->second > min_queue.top().similarity)
+			{
+				min_queue.pop();
+				min_queue.push(item_similarity(cit->first, cit->second));
+			}
+		}
+		else
+			min_queue.push(item_similarity(cit->first, cit->second));
+
+	// Used to store the top-k similar items
+	rated_type reco_items;
+	item_similarity temp(0, 0);
+	while (!min_queue.empty())
+	{
+		// Get the element at the top and save it to top-k similar items
+		temp = min_queue.top();
+		reco_items[temp.id] = temp.similarity;
+
+		// Remove the element
+		min_queue.pop();
+	}
+
+	// Save the new top-k items to the vertex
+	items = reco_items;
+	
+	// Increment the num_updates to the vertex by 1
+	vertex.data().num_updates++;
 }
 
 /*
@@ -785,8 +806,10 @@ void get_recommended_items(engine_type::context& context, graph_type::vertex_typ
 	// Get a reference to the vertex data
 	vertex_data& vdata = vertex.data();
 
+	// Add only those movies that are not rated by the user
 	for(rated_type::const_iterator cit = result.weighted_sum.begin(); cit != result.weighted_sum.end(); ++cit)
-		vdata.recommended_items[cit->first] = (cit->second/result.similarity_sum[cit->first]);
+		if(vdata.rated_items.find(cit->first) == vdata.rated_items.end())
+			vdata.recommended_items[cit->first] = (cit->second/result.similarity_sum[cit->first]);
 
 	// Increment the num_updates to the vertex by 1
 	vdata.num_updates++;
@@ -820,8 +843,7 @@ public:
 
 			return strm.str();
 		}
-
-		if(is_item(v))
+		else
 		{
 			// Stringstream is slower...replace with boost spirit
 			std::stringstream strm;
@@ -976,6 +998,7 @@ int main(int argc, char** argv)
 	dc.cout() << "Finished in " << timer.current_time() << "\n";
 
 	/*
+	// Debug code
     dc.cout() << "Displaying the average rating for each user.\n";
     for(rated_type::const_iterator cit = user_average.begin(); cit != user_average.end(); cit++)
     	dc.cout() << "User: " << cit->first << ", Average Rating: " << cit->second << "\n";
@@ -990,17 +1013,23 @@ int main(int argc, char** argv)
     */
 
 	// Get the list of similar items and the
-	dc.cout() << "Calculate the Top - k similar items for each item...\n";
+	dc.cout() << "Calculate the List of similar items to compare to for each item...\n";
 	timer.start();
-	engine.set_update_function(get_topk);
+	engine.set_update_function(get_similar_items);
 	engine.signal_vset(item_set);
 	engine.start();
 	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
 
+	// Get the list of similar items and the
+	dc.cout() << "Getting the top K similar items out of all the similar items...\n";
+	timer.start();
+	engine.set_update_function(calculate_topk);
+	engine.signal_vset(item_set);
+	engine.start();
+	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
 
-	// Run map_reduce on all the item_vertices to get the global sparse matrix of item vectors
-    /*
-	
+	/*	
+	// Debug Code	
     dc.cout() << "Getting the TOP SIMILAR ITEMS for each item using map reduce on item vertices...\n";
     sparse_matrix topk = graph.map_reduce_vertices<topk_reducer>(topk_reducer::get_topk, item_set).topk;
 	dc.cout() << "Finished in " << timer.current_time() << "\n";
