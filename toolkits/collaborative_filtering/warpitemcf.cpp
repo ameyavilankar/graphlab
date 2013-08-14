@@ -91,6 +91,7 @@ typedef std::map<id_type, rated_type> sparse_matrix;
 /**
 * \brief We use the rated_items type in accumulators and so we define an
 * operator+= so that we can combine two rated_items into a single one
+* Used in caclulating the recommendation scores
 */
 inline rated_type& operator+=(rated_type& left, const rated_type& right)
 {
@@ -111,6 +112,9 @@ inline rated_type& operator+=(rated_type& left, const rated_type& right)
 	return left;
 }
 
+/**
+* \brief Used in finding the list of similar items.
+*/
 inline void combine(rated_type& left, const rated_type& right)
 {
 	// Add entries from right if right is not empty
@@ -150,7 +154,7 @@ inline sparse_matrix& operator+=(sparse_matrix& left, const sparse_matrix& right
 
 /**
 * \brief This is used to find the intersection (common items/users) from two lists of users/items
-*
+*	Not Used
 */
 inline rated_type intersect(const rated_type& left, const rated_type& right)
 {
@@ -175,6 +179,11 @@ size_t TOPK = 10;
 size_t MIN_ALLOWED_INTERSECTION = 1;
 
 /**
+* \brief The type of distance metric to be used.
+*/
+int distance_metric = COSINE;
+
+/**
  * \brief Global map to hold the average rating for each user.
  */
 rated_type user_average;
@@ -183,7 +192,6 @@ rated_type user_average;
  * \brief Global sparse matrix to hold the ratings for each item.
  */
 sparse_matrix item_vector;
-
 
 /**
  * \brief The similarity value to be returned when there are less than MIN_ALLOWED_INTERSECTION
@@ -194,6 +202,7 @@ const int INVALID_SIMILARITY = -2;
 /**
 * \brief Used to calculate the adjusted cosine similarity between two sparse vectors
 */
+//TODO:Change to include different distance metrics
 double adj_cosine_similarity(rated_type& one, rated_type& two)
 {
 	rated_type oneCommon, twoCommon;
@@ -872,28 +881,35 @@ public:
 
 int main(int argc, char** argv)
 {
+	global_logger().set_log_level(LOG_INFO);
+  	global_logger().set_log_to_console(true);
+	
 	// Parse command line options -----------------------------------------------
 	const std::string description = "Carry out Item Based Collaborative Filtering.";
 	graphlab::command_line_options clopts(description);
-	std::string input_file = "inputfile.txt";
-	std::string predictions;
-	std::string exec_type = "synchronous";
-	int min_allowed_intersection = 1;
-	int distance_metric = COSINE;
+	std::string input_file;// = "inputfile.txt";
+	std::string predictions;// = "output";
+	std::string exec_type;// = "synchronous";
 
 	// TODO: Add more commandlines
-	clopts.attach_option("input_file", input_file,
+	clopts.attach_option("input-file", input_file,
 						"Input file name in sparse matrix market format");
 	clopts.attach_option("predictions", predictions,
 	                   "The prefix (folder and filename) to save predictions.");
 	clopts.attach_option("engine", exec_type, 
 	                   "The engine type synchronous or asynchronous");
-	clopts.attach_option("min_allowed_intersection", min_allowed_intersection,
+	clopts.attach_option("min-allowed-intersection", MIN_ALLOWED_INTERSECTION,
 						"The minimum number of common users that have rated two items for considering for similarity computation.");
 	clopts.attach_option("distance", distance_metric, 
 						"The type of distance to be used in the item-item similarity computation.");
 	clopts.attach_option("topk", TOPK,
 						"The number of similar items that should be used in prediction step.");
+
+	std::cout << "Input: " <<  input_file << "\n";
+	std::cout << "Prediction: " <<  predictions << "\n";
+	std::cout << "Engine: " <<  exec_type<< "\n";
+	std::cout << "Distance Metric: " << distance_metric << "\n";
+	std::cout << "K: " << TOPK << "\n";
 
 	// Check if input file was specified
 	if(input_file.empty())
@@ -1052,10 +1068,8 @@ int main(int argc, char** argv)
 	dc.cout() << "Finished in " << timer.current_time() << "\n\n";
 
     // Save the predictions if indicated by the user
-    /*
     if(!predictions.empty())
     {
-    	*/
 	    std::cout << "Saving the Recommended Items for each User...\n";
 	    const bool gzip_output = false;
 	    const bool save_vertices = true;
@@ -1067,7 +1081,7 @@ int main(int argc, char** argv)
 	               gzip_output, save_vertices, 
 	               save_edges, threads_per_machine);
 
-	//}
+	}
 
 	// Close MPI and return success
 	graphlab::mpi_tools::finalize();

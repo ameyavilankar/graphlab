@@ -286,7 +286,7 @@ int main(int argc, char** argv)
     size_t num_partitions = 2;
 
     //parse command line
-    graphlab::command_line_options clopts("Graph partitioning (normalized cut)");
+    graphlab::command_line_options clopts("Graph partitions using Dimensionality Reduction and Clustering");
     clopts.attach_option("graph", graph_dir, "The graph file. This is not optional. Vertex ids must start from 1 "
     "and must not skip any numbers.");
     clopts.attach_option("format", format, "The graph file format. If \"weight\" is set, the program will read "
@@ -297,6 +297,8 @@ int main(int argc, char** argv)
     clopts.attach_option("mpi-args", mpi_args, "If set, will execute mipexec with the given arguments. "
     "For example, --mpi-args=\"-n [N machines] --hostfile [host file]\"");
     
+    std::cout << "graph file: " << graph_dir << "\n";
+    std::cout << "format: " << format << "\n";
 
     if (!clopts.parse(argc, argv))
         return EXIT_FAILURE;
