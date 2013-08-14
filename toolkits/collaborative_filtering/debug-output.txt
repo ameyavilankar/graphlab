@@ -1,0 +1,202 @@
+Pipefishs-Mac-mini-2:collaborative_filtering ameyavilankar$ ./warpitemcf 
+Input: inputfile.txt
+Prediction: output
+Engine: synchronous
+Distance Metric: 4
+K: 10
+INFO:     mpi_tools.hpp(init:63): MPI Support was not compiled.
+INFO:     dc.cpp(distributed_control:122): Shared Memory Execution
+INFO:     dc_tcp_comm.cpp(open_listening:407): Proc 0 listening on 60856
+INFO:     dc_tcp_comm.cpp(connect:428): Trying to connect from 0 -> 0 on port 60856
+INFO:     dc_tcp_comm.cpp(connect:431): Destination IP = 127.0.0.1
+INFO:     dc_tcp_comm.cpp(accept_handler:483): Listening thread launched.
+INFO:     dc_tcp_comm.cpp(connect:463): connection from 0 to 0 established.
+INFO:     dc_tcp_comm.cpp(accept_handler:489): Accepting....
+INFO:     dc_tcp_comm.cpp(accept_handler:494): Accepted
+INFO:     dc_tcp_comm.cpp(new_socket:371): Incoming connection from 127.0.0.1
+INFO:     dc_tcp_comm.cpp(new_socket:380): Proc 0 accepted connection from machine 0
+INFO:     dc_tcp_comm.cpp(accept_handler:544): Listening thread quitting
+INFO:     dc_tcp_comm.cpp(receive_loop:584): Receive loop Started
+INFO:     dc.cpp(init:552): TCP Communication layer constructed.
+INFO:     dc.cpp(init:554): Cluster of 1 instances created.
+INFO:     dc_tcp_comm.cpp(send_loop:643): Send loop Started
+Loading Graph...
+INFO:     distributed_graph.hpp(set_ingress_method:2902): Automatically determine ingress method: grid
+INFO:     distributed_graph.hpp(load_from_posixfs:1908): Loading graph from file: ./inputfile.txt
+Loading Graph Finished in 0.522997
+Finalizing Graph...
+INFO:     distributed_graph.hpp(finalize:694): Distributed graph: enter finalize
+INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Post Flush
+	 Heap: 32.8438 MB
+	 Allocated: 26.021 MB
+INFO:     distributed_ingress_base.hpp(finalize:232): Graph Finalize: constructing local graph
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished populating local graph.
+	 Heap: 55.7422 MB
+	 Allocated: 29.0503 MB
+INFO:     distributed_ingress_base.hpp(finalize:277): Graph Finalize: finalizing local graph.
+INFO:     dynamic_local_graph.hpp(finalize:339): Graph finalized in 0.10503 secs
+INFO:     distributed_ingress_base.hpp(finalize:280): Local graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished finalizing local graph.
+	 Heap: 101.539 MB
+	 Allocated: 45.0991 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished adding vertex data
+	 Heap: 101.539 MB
+	 Allocated: 44.2007 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finihsed allocating lvid2record
+	 Heap: 101.539 MB
+	 Allocated: 44.6538 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished synchronizing vertex (meta)data
+	 Heap: 101.539 MB
+	 Allocated: 46.0824 MB
+INFO:     distributed_ingress_base.hpp(exchange_global_info:494): Graph Finalize: exchange global statistics 
+INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+	 nreplicas: 9746
+	 replication factor: 1
+Finalizing Graph finished in 0.194652
+========== Graph statistics on proc 0 ===============
+ Num vertices: 9746
+ Num edges: 1000209
+ Num replica: 9746
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 9746
+ Num local vertices: 9746
+ Replica to own ratio: 1
+ Num local edges: 1000209
+ Edge balance ratio: 1
+Getting the User Vertex set...
+Number of Users in Graph: 6040
+Getting the Item Vertex set...
+Number of Items in Graph: 3706
+Calculating User average and items rated by user...
+Calculating Item average and users who rated the items...
+INFO:     distributed_graph.hpp(finalize:694): Distributed graph: enter finalize
+INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Post Flush
+	 Heap: 101.539 MB
+	 Allocated: 44.7085 MB
+INFO:     distributed_ingress_base.hpp(finalize:232): Graph Finalize: constructing local graph
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished populating local graph.
+	 Heap: 101.539 MB
+	 Allocated: 44.7086 MB
+INFO:     distributed_ingress_base.hpp(finalize:277): Graph Finalize: finalizing local graph.
+INFO:     dynamic_local_graph.hpp(finalize:339): Graph finalized in 0.001572 secs
+INFO:     distributed_ingress_base.hpp(finalize:280): Local graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished finalizing local graph.
+	 Heap: 101.539 MB
+	 Allocated: 44.7085 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished adding vertex data
+	 Heap: 101.539 MB
+	 Allocated: 44.7085 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finihsed allocating lvid2record
+	 Heap: 101.539 MB
+	 Allocated: 44.7085 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished synchronizing vertex (meta)data
+	 Heap: 101.539 MB
+	 Allocated: 46.1398 MB
+INFO:     distributed_ingress_base.hpp(exchange_global_info:494): Graph Finalize: exchange global statistics 
+INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+	 nreplicas: 9746
+	 replication factor: 1
+INFO:     warp_engine.hpp(start:1254): Spawning 3000 threads
+INFO:     warp_engine.hpp(start:1280): Total Allocated Bytes: 47028552
+INFO:     warp_engine.hpp(try_to_quit:1016): Endgame mode
+INFO:     fiber_async_consensus.cpp(end_done_critical_section:105): 0: Termination Possible
+INFO:     fiber_async_consensus.cpp(pass_the_token:211): Completed Token: 0 0
+Completed Tasks: 9746
+Schedule Joins: 0
+Schedule Adds: 9746
+Finished in 1.23469
+Calculating the average rating for each user...
+Getting the vector for each item using map reduce on item vertices...
+Finished in 1.14374
+Calculate the List of similar items to compare to for each item...
+INFO:     warp_engine.hpp(start:1254): Spawning 3000 threads
+INFO:     warp_engine.hpp(start:1280): Total Allocated Bytes: 191900536
+
+
+INFO:     warp_engine.hpp(try_to_quit:1016): Endgame mode
+INFO:     fiber_async_consensus.cpp(end_done_critical_section:105): 0: Termination Possible
+INFO:     fiber_async_consensus.cpp(pass_the_token:211): Completed Token: 0 0
+Completed Tasks: 3706
+Schedule Joins: 0
+Schedule Adds: 13452
+Finished in 68.2245
+
+Getting the top K similar items out of all the similar items...
+INFO:     warp_engine.hpp(start:1254): Spawning 3000 threads
+INFO:     warp_engine.hpp(start:1280): Total Allocated Bytes: 734777560
+INFO:     warp_engine.hpp(try_to_quit:1016): Endgame mode
+INFO:     fiber_async_consensus.cpp(end_done_critical_section:105): 0: Termination Possible
+INFO:     fiber_async_consensus.cpp(pass_the_token:211): Completed Token: 0 0
+Completed Tasks: 3706
+Schedule Joins: 0
+Schedule Adds: 17158
+Finished in 254.649
+
+Calculating the Recommendations for each of the User: 
+INFO:     warp_engine.hpp(start:1254): Spawning 3000 threads
+INFO:     warp_engine.hpp(start:1280): Total Allocated Bytes: 193710904
+INFO:     warp_engine.hpp(try_to_quit:1016): Endgame mode
+INFO:     fiber_async_consensus.cpp(end_done_critical_section:105): 0: Termination Possible
+INFO:     fiber_async_consensus.cpp(pass_the_token:211): Completed Token: 0 0
+Completed Tasks: 6040
+Schedule Joins: 0
+Schedule Adds: 23198
+Finished in 3.73174
+
+Saving the Recommended Items for each User...
+INFO:     distributed_graph.hpp(finalize:694): Distributed graph: enter finalize
+INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Post Flush
+	 Heap: 754.539 MB
+	 Allocated: 210.86 MB
+INFO:     distributed_ingress_base.hpp(finalize:232): Graph Finalize: constructing local graph
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished populating local graph.
+	 Heap: 754.539 MB
+	 Allocated: 210.86 MB
+INFO:     distributed_ingress_base.hpp(finalize:277): Graph Finalize: finalizing local graph.
+INFO:     dynamic_local_graph.hpp(finalize:339): Graph finalized in 0.001419 secs
+INFO:     distributed_ingress_base.hpp(finalize:280): Local graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished finalizing local graph.
+	 Heap: 754.539 MB
+	 Allocated: 210.86 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished adding vertex data
+	 Heap: 754.539 MB
+	 Allocated: 210.86 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finihsed allocating lvid2record
+	 Heap: 754.539 MB
+	 Allocated: 210.86 MB
+INFO:     memory_info.cpp(log_usage:90): Memory Info: Finished synchronizing vertex (meta)data
+	 Heap: 755.953 MB
+	 Allocated: 331.745 MB
+INFO:     distributed_ingress_base.hpp(exchange_global_info:494): Graph Finalize: exchange global statistics 
+INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info: 
+	 nverts: 9746
+	 nedges: 1000209
+	 nreplicas: 9746
+	 replication factor: 1
+INFO:     distributed_graph.hpp(save_to_posixfs:1574): Saving to file: output_1_of_2
+INFO:     distributed_graph.hpp(save_to_posixfs:1574): Saving to file: output_2_of_2
+INFO:     dc.cpp(~distributed_control:158): Shutting down distributed control 
+INFO:     dc_tcp_comm.cpp(close:243): Closing listening socket
+INFO:     dc_tcp_comm.cpp(send_loop:649): Send loop Stopped
+INFO:     dc_tcp_comm.cpp(close:263): Closing outgoing sockets
+INFO:     dc_tcp_comm.cpp(receive_loop:590): Receive loop Stopped
+INFO:     dc_tcp_comm.cpp(close:281): Closing incoming sockets
+INFO:     dc.cpp(~distributed_control:186): Bytes Sent: 0
+INFO:     dc.cpp(~distributed_control:187): Calls Sent: 12023
+INFO:     dc.cpp(~distributed_control:188): Network Sent: 24491854
+INFO:     dc.cpp(~distributed_control:189): Bytes Received: 0
+INFO:     dc.cpp(~distributed_control:190): Calls Received: 12023
